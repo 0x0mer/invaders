@@ -29,8 +29,8 @@ const WEAPON_LASER = 11;
 const AMMO_CAP_BOUNCE = 50;
 const AMMO_CAP_SPREAD = 100;
 const AMMO_CAP_RAPID = 200;
-const AMMO_CAP_ROCKET = 10;
-const AMMO_CAP_LASER = 10000; // Max stored time in ms
+const AMMO_CAP_ROCKET = 20;
+const AMMO_CAP_LASER = 5000; // Max stored time in ms
 
 // Set canvas size
 canvas.width = GAME_WIDTH;
@@ -162,13 +162,6 @@ class PowerUp {
             
             ctx.fill();
             ctx.shadowBlur = 0;
-            
-            // HP Text
-            ctx.fillStyle = '#FFFFFF';
-            ctx.font = 'bold 8px Courier New';
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillText("HP", 0, -1); // Slightly up to sit in the bulk of the heart
             
             ctx.restore();
         } else if (this.type === WEAPON_SHIELD) {
@@ -689,7 +682,7 @@ class Player {
         } else if (type === WEAPON_BOUNCE) {
             if (this.ammo[WEAPON_BOUNCE] !== Infinity) this.ammo[WEAPON_BOUNCE] = Math.min(AMMO_CAP_BOUNCE, this.ammo[WEAPON_BOUNCE] + 15);
         } else if (type === WEAPON_ROCKET) {
-            if (this.ammo[WEAPON_ROCKET] !== Infinity) this.ammo[WEAPON_ROCKET] = Math.min(AMMO_CAP_ROCKET, this.ammo[WEAPON_ROCKET] + 2);
+            if (this.ammo[WEAPON_ROCKET] !== Infinity) this.ammo[WEAPON_ROCKET] = Math.min(AMMO_CAP_ROCKET, this.ammo[WEAPON_ROCKET] + 3);
         } else if (type === WEAPON_LASER) {
             if (this.ammo[WEAPON_LASER] !== Infinity) this.ammo[WEAPON_LASER] = Math.min(AMMO_CAP_LASER, this.ammo[WEAPON_LASER] + 5000);
         } else {
@@ -893,6 +886,9 @@ class Game {
         this.cheatBuffer = '';
         this.paused = false;
 
+        this.levelTransition = false;
+        this.levelTransitionTimer = 0;
+
         this.initInput();
         this.initStars();
         this.startLevel();
@@ -914,8 +910,14 @@ class Game {
             if (e.key.length === 1) {
                 this.cheatBuffer += e.key;
                 if (this.cheatBuffer.length > 20) this.cheatBuffer = this.cheatBuffer.slice(-20);
-                if (this.cheatBuffer.endsWith('branch of gold')) {
+                
+                const bufferLower = this.cheatBuffer.toLowerCase();
+                if (bufferLower.endsWith('branch of gold')) {
                     this.player.activateCheat();
+                    this.cheatBuffer = '';
+                }
+                if (bufferLower.endsWith('lazers')) {
+                    this.activateLazersCheat();
                     this.cheatBuffer = '';
                 }
             } else {
@@ -937,6 +939,12 @@ class Game {
         this.enemies = [];
         this.powerUps = [];
         this.bullets = []; 
+        
+        this.levelTransition = true;
+        this.levelTransitionTimer = 2500; // 2.5 seconds pause
+    }
+
+    spawnEnemies() {
         this.enemySpeed = ENEMY_BASE_SPEED + (this.level * 0.1);
         
         // Boss Level every 5 levels
@@ -988,6 +996,17 @@ class Game {
         }
     }
 
+    activateLazersCheat() {
+        for (let i = 0; i < 3; i++) {
+            this.powerUps.push(new PowerUp(
+                randomRange(50, this.width - 50), 
+                randomRange(50, this.height / 2), 
+                WEAPON_LASER
+            ));
+        }
+        this.sounds.powerup();
+    }
+
     restart() {
         this.score = 0;
         this.level = 1;
@@ -1001,6 +1020,18 @@ class Game {
         this.stars.forEach(star => star.update());
 
         if (this.paused) return;
+
+        if (this.levelTransition) {
+            this.levelTransitionTimer -= deltaTime;
+            if (this.levelTransitionTimer <= 0) {
+                this.levelTransition = false;
+                this.spawnEnemies();
+            }
+            // Player update removed to prevent moving/shooting during transition
+            this.particles.forEach(p => p.update());
+            this.particles = this.particles.filter(p => p.life > 0);
+            return;
+        }
 
         if (this.shake > 0) this.shake -= deltaTime * 0.5;
         if (this.shake < 0) this.shake = 0;
@@ -1022,7 +1053,7 @@ class Game {
         this.updateUI();
 
         // Level Clear
-        if (this.enemies.length === 0) {
+        if (this.enemies.length === 0 && this.powerUps.length === 0) {
             this.level++;
             // Bonus for life
             this.score += 1000;
@@ -1489,7 +1520,16 @@ class Game {
         document.getElementById('scoreVal').innerText = this.score;
         document.getElementById('highScoreVal').innerText = this.highScore;
         document.getElementById('levelVal').innerText = this.level;
-        document.getElementById('livesVal').innerText = Math.max(0, this.lives);
+        
+        // Update Lives (Hearts)
+        const livesDisplay = document.getElementById('lives-display');
+        if (livesDisplay) {
+            let hearts = '';
+            for (let i = 0; i < Math.max(0, this.lives); i++) {
+                hearts += '❤';
+            }
+            livesDisplay.innerHTML = 'Lives: ' + hearts;
+        }
 
         // Update Health Bar
         const hpPercent = Math.max(0, (this.player.hp / this.player.maxHp) * 100);
@@ -1566,6 +1606,28 @@ class Game {
 
         // Particles
         this.particles.forEach(p => p.draw(ctx));
+        
+        if (this.levelTransition) {
+            ctx.save();
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.font = 'bold 48px "Courier New", monospace';
+            
+            let text = `LEVEL ${this.level}`;
+            if (this.level % 5 === 0) {
+                 text += ": BOSS LEVEL";
+                 ctx.fillStyle = '#ff3333';
+                 ctx.shadowColor = '#ff0000';
+                 ctx.shadowBlur = 20;
+            } else {
+                 ctx.fillStyle = '#33ff00';
+                 ctx.shadowColor = '#33ff00';
+                 ctx.shadowBlur = 20;
+            }
+            
+            ctx.fillText(text, this.width/2, this.height/2);
+            ctx.restore();
+        }
         
         ctx.restore();
 
