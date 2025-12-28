@@ -481,7 +481,9 @@ class Doppelganger {
         this.x = player.x + offsetX;
         this.y = player.y;
         this.active = false;
-        this.hp = 3; 
+        this.hp = 3;
+        this.shieldActive = false;
+        this.shieldHp = 0;
     }
 
     update(deltaTime) {
@@ -506,6 +508,16 @@ class Doppelganger {
         ctx.fillRect(this.x + 4, this.y + 6, this.width - 8, 6);
         ctx.fillRect(this.x + 14, this.y, 12, 6);
         ctx.globalAlpha = 1.0;
+
+        if (this.shieldActive && this.shieldHp > 0) {
+            ctx.beginPath();
+            ctx.arc(this.x + this.width/2, this.y + this.height/2, this.width, 0, Math.PI * 2);
+            ctx.strokeStyle = `rgba(0, 255, 255, ${0.5 + Math.sin(Date.now() / 200) * 0.2})`;
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            ctx.fillStyle = `rgba(0, 255, 255, 0.1)`;
+            ctx.fill();
+        }
     }
 }
 
@@ -575,15 +587,6 @@ class Player {
             }
         }
 
-        // Triple Weapon Timer
-        if (this.tripleTimer > 0) {
-            this.tripleTimer -= deltaTime;
-            if (this.tripleTimer <= 0) {
-                this.doppelgangers.forEach(d => d.active = false);
-                this.doppelgangers = [];
-            }
-        }
-
         // Doppelgangers
         this.doppelgangers.forEach(d => d.update(deltaTime));
 
@@ -592,9 +595,9 @@ class Player {
 
         if (this.game.keys['Space']) {
             if (this.bulletTimer > this.bulletInterval) {
-                this.shoot();
+                const usedWeapon = this.shoot();
                 this.doppelgangers.forEach(d => {
-                    if (d.active) this.shoot(d);
+                    if (d.active) this.shoot(d, usedWeapon);
                 });
                 this.bulletTimer = 0;
             }
@@ -631,6 +634,10 @@ class Player {
 
     setWeapon(type) {
         if (type === WEAPON_DOPPELGANGER) {
+            // Don't override if any doppelganger is active
+            if (this.doppelgangers.some(d => d.active)) {
+                return;
+            }
             this.doppelgangers = [new Doppelganger(this, -80)];
             this.doppelgangers[0].active = true;
             this.doppelgangers[0].hp = 3;
@@ -646,7 +653,7 @@ class Player {
                 d.active = true;
                 d.hp = 3;
             });
-            this.tripleTimer = 10000;
+            // No timer for triple anymore
             return;
         }
 
@@ -657,8 +664,21 @@ class Player {
         }
 
         if (type === WEAPON_SHIELD) {
-            this.shieldActive = true;
-            this.shieldHp = 50; 
+            // Cascading shield logic: Player -> Doppleganger 1 -> Doppleganger 2
+            if (!this.shieldActive) {
+                this.shieldActive = true;
+                this.shieldHp = 50;
+            } else {
+                // Check doppelgangers
+                const unshieldedDoppelganger = this.doppelgangers.find(d => d.active && !d.shieldActive);
+                if (unshieldedDoppelganger) {
+                    unshieldedDoppelganger.shieldActive = true;
+                    unshieldedDoppelganger.shieldHp = 30;
+                } else {
+                    // Everyone has shield? Refresh player shield
+                    this.shieldHp = 50;
+                }
+            }
             return;
         }
 
@@ -690,7 +710,7 @@ class Player {
         }
     }
 
-    shoot(sourceEntity = null) {
+    shoot(sourceEntity = null, forcedWeapon = null) {
         const isDoppelganger = sourceEntity !== null;
         const sourceX = isDoppelganger ? sourceEntity.x : this.x;
         const sourceY = isDoppelganger ? sourceEntity.y : this.y;
@@ -699,25 +719,29 @@ class Player {
         const createBullet = (vx, vy, bounce = false, rocket = false, laser = false) => new Bullet(centerX, sourceY, vx, vy, false, bounce, rocket, laser);
 
         // Determine actual weapon to fire
-        let activeWeapon = this.weaponType;
-        if (this.superWeaponType) {
-            activeWeapon = this.superWeaponType;
-        } else {
-            // Check ammo for standard weapons
-            if (activeWeapon !== WEAPON_DEFAULT) {
-                if (this.ammo[activeWeapon] > 0) {
-                    if (!isDoppelganger) {
-                        if (activeWeapon === WEAPON_LASER) {
-                            this.ammo[activeWeapon] -= 50;
-                        } else {
-                            this.ammo[activeWeapon]--; // Only player consumes ammo
+        let activeWeapon = forcedWeapon;
+        
+        if (activeWeapon === null) {
+            activeWeapon = this.weaponType;
+            if (this.superWeaponType) {
+                activeWeapon = this.superWeaponType;
+            } else {
+                // Check ammo for standard weapons
+                if (activeWeapon !== WEAPON_DEFAULT) {
+                    if (this.ammo[activeWeapon] > 0) {
+                        if (!isDoppelganger) {
+                            if (activeWeapon === WEAPON_LASER) {
+                                this.ammo[activeWeapon] -= 50;
+                            } else {
+                                this.ammo[activeWeapon]--; // Only player consumes ammo
+                            }
                         }
+                        if (this.ammo[activeWeapon] <= 0) {
+                            this.weaponType = WEAPON_DEFAULT; // Auto-downgrade
+                        }
+                    } else {
+                        activeWeapon = WEAPON_DEFAULT;
                     }
-                    if (this.ammo[activeWeapon] <= 0) {
-                        this.weaponType = WEAPON_DEFAULT; // Auto-downgrade
-                    }
-                } else {
-                    activeWeapon = WEAPON_DEFAULT;
                 }
             }
         }
@@ -756,6 +780,8 @@ class Player {
             this.game.bullets.push(createBullet(0, -BULLET_SPEED));
             this.game.sounds.shoot();
         }
+
+        return activeWeapon;
     }
 
     draw(ctx) {
@@ -789,26 +815,43 @@ class Player {
 
 class SoundManager {
     constructor() {
-        this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+        this.ctx = null;
+        try {
+            const AudioContext = window.AudioContext || window.webkitAudioContext;
+            if (AudioContext) {
+                this.ctx = new AudioContext();
+            }
+        } catch (e) {
+            console.warn('Audio disabled:', e);
+        }
         this.masterVolume = 0.3;
     }
 
     playTone(freq, type, duration, vol = 1.0) {
-        if (this.ctx.state === 'suspended') this.ctx.resume();
-        const osc = this.ctx.createOscillator();
-        const gain = this.ctx.createGain();
+        if (!this.ctx) return;
         
-        osc.type = type;
-        osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
-        
-        gain.gain.setValueAtTime(vol * this.masterVolume, this.ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + duration);
-        
-        osc.connect(gain);
-        gain.connect(this.ctx.destination);
-        
-        osc.start();
-        osc.stop(this.ctx.currentTime + duration);
+        try {
+            if (this.ctx.state === 'suspended') {
+                this.ctx.resume().catch(e => console.warn('Audio resume failed', e));
+            }
+            
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            
+            osc.type = type;
+            osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
+            
+            gain.gain.setValueAtTime(vol * this.masterVolume, this.ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + duration);
+            
+            osc.connect(gain);
+            gain.connect(this.ctx.destination);
+            
+            osc.start();
+            osc.stop(this.ctx.currentTime + duration);
+        } catch (e) {
+            console.warn('Audio play failed:', e);
+        }
     }
 
     shoot() {
@@ -874,7 +917,12 @@ class Game {
         this.score = 0;
         this.level = 1;
         this.lives = 3;
-        this.highScore = localStorage.getItem('invadersHighScore') || 0;
+        try {
+            this.highScore = localStorage.getItem('invadersHighScore') || 0;
+        } catch (e) {
+            console.warn('LocalStorage not available:', e);
+            this.highScore = 0;
+        }
         this.gameOver = false;
         
         this.enemyDirection = 1;
@@ -1207,8 +1255,41 @@ class Game {
 
                 // Check collision with Doppelganger
                 this.player.doppelgangers.forEach(d => {
-                    if (d.active && checkRectCollision(bullet, d)) {
+                    if (!d.active) return;
+                    
+                    let hitShield = false;
+                    
+                    if (d.shieldActive && d.shieldHp > 0) {
+                        const shieldX = d.x + d.width/2;
+                        const shieldY = d.y + d.height/2;
+                        const shieldRadius = d.width; // Approx radius matching draw
+
+                        const bulletCenterX = bullet.x + bullet.width/2;
+                        const bulletCenterY = bullet.y + bullet.height/2;
+
+                        const dx = bulletCenterX - shieldX;
+                        const dy = bulletCenterY - shieldY;
+                        const dist = Math.sqrt(dx*dx + dy*dy);
+
+                        if (dist < shieldRadius + bullet.width/2) {
+                            hitShield = true;
+                            bullet.markedForDeletion = true;
+                            d.shieldHp -= 10;
+                            this.sounds.shieldHit();
+                            if (d.shieldHp <= 0) {
+                                d.shieldActive = false;
+                                d.shieldHp = 0;
+                                this.createExplosion(d.x + d.width/2, d.y + d.height/2, '#0000FF', 10);
+                                this.sounds.explosion();
+                            } else {
+                                this.createExplosion(d.x + d.width/2, d.y + d.height/2, '#00FFFF', 5);
+                            }
+                        }
+                    }
+
+                    if (!hitShield && checkRectCollision(bullet, d)) {
                          bullet.markedForDeletion = true;
+                         
                          d.hp--;
                          this.createExplosion(bullet.x, bullet.y, '#fff', 5);
                          if (d.hp <= 0) {
@@ -1309,7 +1390,9 @@ class Game {
                                     // High score update
                                     if (this.score > this.highScore) {
                                         this.highScore = this.score;
-                                        localStorage.setItem('invadersHighScore', this.highScore);
+                                        try {
+                                            localStorage.setItem('invadersHighScore', this.highScore);
+                                        } catch (e) {}
                                     }
 
                                     // Speed up
@@ -1394,6 +1477,14 @@ class Game {
         }
 
         this.powerUps.push(new PowerUp(x, y, type));
+    }
+
+    getNewUnlocks(level) {
+        if (level === 1) return [];
+        if (level === 5) return ['HYPER', 'OMEGA'];
+        if (level === 10) return ['TRIPLE'];
+        if (level === 16) return ['LASER'];
+        return [];
     }
 
     takeDamage(amount) {
@@ -1502,12 +1593,11 @@ class Game {
              `;
         }
         
-        if (this.player.tripleTimer > 0) {
-             const time = Math.ceil(this.player.tripleTimer / 1000);
+        if (this.player.doppelgangers.length >= 2 && this.player.doppelgangers.every(d => d.active)) {
              html += `
                 <div class="weapon-item active" style="color: #AAAAAA; border-color: #AAAAAA; margin-top: 10px;">
                     <span class="weapon-name">TRIPLE</span>
-                    <span class="weapon-ammo">${time}s</span>
+                    <span class="weapon-ammo">ON</span>
                 </div>
              `;
         }
@@ -1611,11 +1701,10 @@ class Game {
             ctx.save();
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
-            ctx.font = 'bold 48px "Courier New", monospace';
             
-            let text = `LEVEL ${this.level}`;
+            let text = `LEVEL: ${this.level}`;
             if (this.level % 5 === 0) {
-                 text += ": BOSS LEVEL";
+                 text += " - BOSS LEVEL";
                  ctx.fillStyle = '#ff3333';
                  ctx.shadowColor = '#ff0000';
                  ctx.shadowBlur = 20;
@@ -1625,7 +1714,23 @@ class Game {
                  ctx.shadowBlur = 20;
             }
             
-            ctx.fillText(text, this.width/2, this.height/2);
+            const unlocks = this.getNewUnlocks(this.level);
+            const hasUnlocks = unlocks.length > 0;
+            
+            ctx.font = 'bold 48px "Courier New", monospace';
+            ctx.fillText(text, this.width/2, hasUnlocks ? this.height/2 - 80 : this.height/2);
+
+            if (hasUnlocks) {
+                ctx.font = 'bold 24px "Courier New", monospace';
+                ctx.fillStyle = '#fff';
+                ctx.shadowBlur = 10;
+                ctx.shadowColor = '#fff';
+                ctx.fillText("NEW DROPS UNLOCKED:", this.width/2, this.height/2 - 20);
+                
+                unlocks.forEach((unlock, index) => {
+                    ctx.fillText(`• ${unlock}`, this.width/2, this.height/2 + 20 + (index * 30));
+                });
+            }
             ctx.restore();
         }
         
@@ -1661,7 +1766,7 @@ class Game {
 
 // --- Main Loop ---
 const game = new Game();
-let lastTime = 0;
+let lastTime = performance.now();
 
 function animate(timeStamp) {
     const deltaTime = timeStamp - lastTime;
@@ -1673,4 +1778,4 @@ function animate(timeStamp) {
     requestAnimationFrame(animate);
 }
 
-animate(0);
+requestAnimationFrame(animate);
