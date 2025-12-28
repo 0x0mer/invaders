@@ -907,6 +907,20 @@ class Game {
         this.width = GAME_WIDTH;
         this.height = GAME_HEIGHT;
         this.keys = {};
+        
+        // Cache DOM elements
+        this.elements = {
+            score: document.getElementById('scoreVal'),
+            highScore: document.getElementById('highScoreVal'),
+            level: document.getElementById('levelVal'),
+            weapon: document.getElementById('weaponVal'),
+            lives: document.getElementById('lives-display'),
+            healthBar: document.getElementById('health-bar-fill'),
+            shield: document.getElementById('shield-indicator'),
+            arsenalList: document.getElementById('arsenal-list')
+        };
+        this.lastArsenalHTML = '';
+
         this.player = new Player(this);
         this.enemies = [];
         this.powerUps = [];
@@ -1176,7 +1190,12 @@ class Game {
         if (hitWall) {
             this.enemyDirection *= -1;
             this.enemies.forEach(enemy => {
-                if (!enemy.isBoss) enemy.y += 20;
+                if (!enemy.isBoss) {
+                    enemy.y += 20;
+                    // Nudge back into screen to prevent vibration
+                    if (enemy.x < 0) enemy.x = 0;
+                    if (enemy.x + enemy.width > this.width) enemy.x = this.width - enemy.width;
+                }
             });
         }
 
@@ -1494,21 +1513,24 @@ class Game {
             if (this.player.shieldHp <= 0) {
                 this.player.shieldActive = false;
                 this.player.shieldHp = 0;
-                this.createExplosion(this.player.x + this.player.width/2, this.player.y + this.player.height/2, '#0000FF', 10); // Shield break effect
+                this.createExplosion(this.player.x + this.player.width/2, this.player.y + this.player.height/2, '#0000FF', 10);
                 this.sounds.explosion();
             } else {
-                // Shield hit effect (smaller blue pop)
                 this.createExplosion(this.player.x + this.player.width/2, this.player.y + this.player.height/2, '#00FFFF', 5);
             }
         } else {
             this.player.hp -= amount;
-            this.createExplosion(this.player.x + this.player.width/2, this.player.y + this.player.height/2, '#ff3333', 5); // Blood/Sparks
+            this.createExplosion(this.player.x + this.player.width/2, this.player.y + this.player.height/2, '#ff3333', 5);
             this.sounds.damage();
             this.shake = 15;
             
             // Flash screen red
             document.body.style.backgroundColor = '#330000';
-            setTimeout(() => document.body.style.backgroundColor = '#0d0d0d', 50);
+            if (this.flashTimeout) clearTimeout(this.flashTimeout);
+            this.flashTimeout = setTimeout(() => {
+                document.body.style.backgroundColor = '#0d0d0d';
+                this.flashTimeout = null;
+            }, 50);
 
             if (this.player.hp <= 0) {
                 this.handlePlayerDeath();
@@ -1544,8 +1566,7 @@ class Game {
     }
 
     updateArsenal() {
-        const list = document.getElementById('arsenal-list');
-        if (!list) return;
+        if (!this.elements.arsenalList) return;
 
         let html = '';
         
@@ -1602,36 +1623,41 @@ class Game {
              `;
         }
 
-        list.innerHTML = html;
+        if (this.lastArsenalHTML !== html) {
+            this.elements.arsenalList.innerHTML = html;
+            this.lastArsenalHTML = html;
+        }
     }
 
     updateUI() {
         this.updateArsenal();
-        document.getElementById('scoreVal').innerText = this.score;
-        document.getElementById('highScoreVal').innerText = this.highScore;
-        document.getElementById('levelVal').innerText = this.level;
+        if (this.elements.score) this.elements.score.innerText = this.score;
+        if (this.elements.highScore) this.elements.highScore.innerText = this.highScore;
+        if (this.elements.level) this.elements.level.innerText = this.level;
         
         // Update Lives (Hearts)
-        const livesDisplay = document.getElementById('lives-display');
-        if (livesDisplay) {
+        if (this.elements.lives) {
             let hearts = '';
             for (let i = 0; i < Math.max(0, this.lives); i++) {
                 hearts += '❤';
             }
-            livesDisplay.innerHTML = 'Lives: ' + hearts;
+            this.elements.lives.innerHTML = 'Lives: ' + hearts;
         }
 
         // Update Health Bar
-        const hpPercent = Math.max(0, (this.player.hp / this.player.maxHp) * 100);
-        document.getElementById('health-bar-fill').style.width = `${hpPercent}%`;
+        if (this.elements.healthBar) {
+            const hpPercent = Math.max(0, (this.player.hp / this.player.maxHp) * 100);
+            this.elements.healthBar.style.width = `${hpPercent}%`;
+        }
         
         // Shield Indicator
-        const shieldInd = document.getElementById('shield-indicator');
-        if (this.player.shieldActive) {
-            shieldInd.style.display = 'block';
-            shieldInd.innerText = `[SHIELD: ${this.player.shieldHp}]`;
-        } else {
-            shieldInd.style.display = 'none';
+        if (this.elements.shield) {
+            if (this.player.shieldActive) {
+                this.elements.shield.style.display = 'block';
+                this.elements.shield.innerText = `[SHIELD: ${this.player.shieldHp}]`;
+            } else {
+                this.elements.shield.style.display = 'none';
+            }
         }
 
         let weaponName = 'DEFAULT';
@@ -1668,9 +1694,10 @@ class Game {
         if (activeDoppelgangers === 1) weaponName += " + DUAL";
         else if (activeDoppelgangers >= 2) weaponName += " + TRIPLE";
 
-        const wVal = document.getElementById('weaponVal');
-        wVal.innerText = weaponName + ammoCount;
-        wVal.style.color = color;
+        if (this.elements.weapon) {
+            this.elements.weapon.innerText = weaponName + ammoCount;
+            this.elements.weapon.style.color = color;
+        }
     }
 
     draw() {
@@ -1686,13 +1713,11 @@ class Game {
         // Stars
         this.stars.forEach(star => star.draw(ctx));
 
-        // Game Objects
-        if (!this.gameOver) {
-            this.player.draw(ctx);
-            this.powerUps.forEach(pu => pu.draw(ctx));
-            this.enemies.forEach(enemy => enemy.draw(ctx));
-            this.bullets.forEach(b => b.draw(ctx));
-        }
+        // Game Objects - always drawn to keep state visible on Game Over
+        this.player.draw(ctx);
+        this.powerUps.forEach(pu => pu.draw(ctx));
+        this.enemies.forEach(enemy => enemy.draw(ctx));
+        this.bullets.forEach(b => b.draw(ctx));
 
         // Particles
         this.particles.forEach(p => p.draw(ctx));
