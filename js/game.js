@@ -149,42 +149,62 @@ class PowerUp {
 }
 
 class Bullet {
-    constructor(x, y, vx, vy, isEnemy = false, isBouncing = false, isRocket = false, isLaser = false) {
+    constructor(x, y, vx, vy, isEnemy = false, isBouncing = false, isRocket = false, isLaser = false, isHoming = false, target = null) {
         this.x = x;
         this.y = y;
-        this.width = isRocket ? 8 : (isLaser ? 4 : 4);
-        this.height = isRocket ? 16 : (isLaser ? GAME_HEIGHT : 12);
+        this.width = isRocket ? 8 : (isLaser ? 4 : (isHoming ? 10 : 4));
+        this.height = isRocket ? 16 : (isLaser ? GAME_HEIGHT : (isHoming ? 10 : 12));
         this.vx = vx;
         this.vy = vy;
         this.isEnemy = isEnemy;
         this.isBouncing = isBouncing;
         this.isRocket = isRocket;
         this.isLaser = isLaser;
+        this.isHoming = isHoming;
+        this.target = target;
         this.bounceCount = 0;
         this.maxBounces = 3;
         this.markedForDeletion = false;
+        this.hp = isHoming ? 3 : 1;
         
         if (this.isLaser) {
-            this.y = 0; // Laser goes all the way to top
-            this.height = GAME_HEIGHT; // Covers screen height basically (or from player to top)
-            // Correction: Laser should start from player y and go up. 
-            // If y is passed as player Y, and height is GAME_HEIGHT, it draws down.
-            // But we want it to go up. 
-            // Let's set y to 0 (top) and height to the passed y (player y) + offset?
-            // Actually, simpler: Set y = 0, height = GAME_HEIGHT. It's a beam.
-            // But visually it should start at player.
-            // Let's rely on draw to clip it or just draw it from 0 to GAME_HEIGHT.
-            // If it starts at player, it should be: y = 0, height = passed_y.
-            // Let's just set it to cover the whole column for simplicity of collision, 
-            // but for drawing we might want to be careful.
-            // Re-evaluating: 'straight line of laser going all the way to the top of the screen'
-            // So from Player -> Top.
-            this.height = y; // Height is distance from top to player
             this.y = 0; 
+            this.height = y; 
         }
     }
 
     update() {
+        if (this.isHoming && this.target && !this.target.markedForDeletion) {
+            // Homing logic: slowly steer velocity towards target
+            const dx = (this.target.x + this.target.width / 2) - this.x;
+            const dy = (this.target.y + this.target.height / 2) - this.y;
+            const angleToTarget = Math.atan2(dy, dx);
+            
+            // Current angle
+            let currentAngle = Math.atan2(this.vy, this.vx);
+            
+            // Smoothly interpolate angle (very slow turn for "circles")
+            // Simple approach: Adjust velocity vector
+            const turnSpeed = 0.05; // Low turn speed
+            
+            // We can just nudge the velocity towards the target vector
+            // Normalize desired direction
+            const dist = Math.sqrt(dx*dx + dy*dy);
+            const dirX = dx / dist;
+            const dirY = dy / dist;
+            
+            // Speed of missile
+            const speed = Math.sqrt(this.vx*this.vx + this.vy*this.vy);
+            
+            this.vx += dirX * turnSpeed;
+            this.vy += dirY * turnSpeed;
+            
+            // Re-normalize to constant speed
+            const newSpeed = Math.sqrt(this.vx*this.vx + this.vy*this.vy);
+            this.vx = (this.vx / newSpeed) * speed;
+            this.vy = (this.vy / newSpeed) * speed;
+        }
+
         this.x += this.vx;
         this.y += this.vy;
 
@@ -245,13 +265,32 @@ class Bullet {
              return;
         }
 
+        if (this.isHoming) {
+            ctx.fillStyle = '#800080'; // Purple
+            ctx.beginPath();
+            ctx.arc(this.x + this.width/2, this.y + this.height/2, this.width/2, 0, Math.PI * 2);
+            ctx.fill();
+            // Glow
+            ctx.fillStyle = 'rgba(255, 0, 255, 0.5)';
+            ctx.beginPath();
+            ctx.arc(this.x + this.width/2, this.y + this.height/2, this.width/2 + 2, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Show HP
+            ctx.fillStyle = '#fff';
+            ctx.font = 'bold 10px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText(Math.ceil(this.hp), this.x + this.width/2, this.y - 5);
+            return;
+        }
+
         ctx.fillStyle = this.isEnemy ? '#ff3333' : (this.isBouncing ? '#FFA500' : BULLET_COLOR);
         ctx.fillRect(this.x, this.y, this.width, this.height);
     }
 }
 
 class Enemy {
-    constructor(x, y, type, isBoss = false) {
+    constructor(x, y, type, isBoss = false, hp = 1) {
         this.x = x;
         this.y = y;
         this.isBoss = isBoss;
@@ -265,8 +304,9 @@ class Enemy {
         } else {
             this.width = 30;
             this.height = 20;
-            this.hp = 1;
-            this.scoreValue = 10 + (type * 10);
+            this.hp = hp;
+            this.maxHp = hp;
+            this.scoreValue = 10 + (type * 10) * hp;
         }
 
         this.type = type; 
@@ -275,7 +315,7 @@ class Enemy {
     }
 
     draw(ctx) {
-        ctx.fillStyle = '#ff3333';
+        let color = '#ff3333';
         
         if (this.isBoss) {
             // Boss visual
@@ -290,6 +330,19 @@ class Enemy {
             ctx.fillRect(this.x, this.y - 10, this.width * (this.hp / this.maxHp), 5);
             return;
         }
+
+        // Color based on MaxHP (Tier)
+        switch(this.maxHp) {
+            case 1: color = '#ff3333'; break;
+            case 2: color = '#ffa500'; break;
+            case 3: color = '#ffff00'; break;
+            case 4: color = '#00ff00'; break;
+            case 5: color = '#00ffff'; break;
+            case 6: color = '#0000ff'; break;
+            default: color = '#ff00ff'; break;
+        }
+        
+        ctx.fillStyle = color;
 
         // Standard enemies
         if (this.type === 0) {
@@ -314,6 +367,22 @@ class Enemy {
         ctx.fillStyle = 'black';
         ctx.fillRect(this.x + this.width/2 - 6, this.y + 8, 4, 4);
         ctx.fillRect(this.x + this.width/2 + 2, this.y + 8, 4, 4);
+
+        // HP Bar for non-boss tough enemies
+        if (!this.isBoss && this.maxHp > 1) {
+            const hpWidth = this.width;
+            const hpHeight = 3;
+            const hpY = this.y - 6;
+            
+            // Background
+            ctx.fillStyle = '#550000';
+            ctx.fillRect(this.x, hpY, hpWidth, hpHeight);
+            
+            // Foreground
+            ctx.fillStyle = '#00ff00';
+            const currentHpWidth = Math.max(0, (this.hp / this.maxHp) * hpWidth);
+            ctx.fillRect(this.x, hpY, currentHpWidth, hpHeight);
+        }
     }
 }
 
@@ -729,6 +798,7 @@ class Game {
         this.sounds = new SoundManager();
         this.shake = 0;
         this.cheatBuffer = '';
+        this.paused = false;
 
         this.initInput();
         this.initStars();
@@ -743,6 +813,11 @@ class Game {
 
     initInput() {
         window.addEventListener('keydown', e => {
+            if (e.code === 'KeyP' || e.key.toLowerCase() === 'p') {
+                this.paused = !this.paused;
+                return;
+            }
+
             if (e.key.length === 1) {
                 this.cheatBuffer += e.key;
                 if (this.cheatBuffer.length > 20) this.cheatBuffer = this.cheatBuffer.slice(-20);
@@ -786,7 +861,17 @@ class Game {
             const startX = 50;
             const startY = 50;
             
+            // Difficulty Calculation
+            // Level 1: 0 steps. base=1, rem=0. All 1.
+            // Level 2: 1 step. base=1, rem=1. Row 0 is 2.
+            const difficultySteps = this.level - 1;
+            const baseHp = 1 + Math.floor(difficultySteps / rows);
+            const remainder = difficultySteps % rows;
+
             for (let r = 0; r < rows; r++) {
+                let hp = baseHp;
+                if (r < remainder) hp++;
+
                 for (let c = 0; c < cols; c++) {
                     // Prevent overlapping grid with boundaries
                     const x = startX + c * 50;
@@ -795,7 +880,9 @@ class Game {
                     this.enemies.push(new Enemy(
                         x,
                         startY + r * 40,
-                        r % 3
+                        r % 3,
+                        false,
+                        hp
                     ));
                 }
             }
@@ -819,6 +906,8 @@ class Game {
 
     update(deltaTime) {
         this.stars.forEach(star => star.update());
+
+        if (this.paused) return;
 
         if (this.shake > 0) this.shake -= deltaTime * 0.5;
         if (this.shake < 0) this.shake = 0;
@@ -869,6 +958,24 @@ class Game {
                     ));
                     this.sounds.enemyShoot();
                 }
+
+                // Homing Missile (Level 10+)
+                const existingHoming = this.bullets.some(b => b.isEnemy && b.isHoming && !b.markedForDeletion);
+                if (this.level >= 10 && !existingHoming && Math.random() < 0.005) { 
+                     this.bullets.push(new Bullet(
+                        enemy.x + enemy.width/2, 
+                        enemy.y + enemy.height, 
+                        0, 
+                        1.5, 
+                        true, 
+                        false, 
+                        false, 
+                        false, 
+                        true, 
+                        this.player
+                    ));
+                    this.sounds.enemyShoot(); 
+                }
                 return; 
             }
 
@@ -907,6 +1014,38 @@ class Game {
     }
 
     checkCollisions() {
+        // Player Bullets vs Homing Missiles
+        const playerBullets = this.bullets.filter(b => !b.isEnemy && !b.markedForDeletion);
+        const homingMissiles = this.bullets.filter(b => b.isEnemy && b.isHoming && !b.markedForDeletion);
+        
+        playerBullets.forEach(pb => {
+            homingMissiles.forEach(hm => {
+                if (pb.markedForDeletion || hm.markedForDeletion) return;
+                
+                if (checkRectCollision(pb, hm)) {
+                    if (!pb.isLaser && !pb.isRocket) pb.markedForDeletion = true;
+                    
+                    if (pb.isRocket) {
+                        pb.markedForDeletion = true;
+                        this.createExplosion(pb.x, pb.y, '#FF4500', 20);
+                        hm.hp -= 3; 
+                    } else if (pb.isLaser) {
+                         hm.hp -= 0.5; 
+                    } else {
+                         hm.hp -= 1;
+                    }
+
+                    this.createExplosion(hm.x + hm.width/2, hm.y + hm.height/2, '#800080', 3);
+                    
+                    if (hm.hp <= 0) {
+                        hm.markedForDeletion = true;
+                        this.createExplosion(hm.x + hm.width/2, hm.y + hm.height/2, '#800080', 15);
+                        this.score += 50;
+                    }
+                }
+            });
+        });
+
         // Bullets vs Enemies / Player
         this.bullets.forEach(bullet => {
             if (bullet.markedForDeletion) return;
@@ -1034,23 +1173,28 @@ class Game {
                                     this.dropPowerUp(enemy.x, enemy.y); 
                                 }
                             } else {
-                                enemy.markedForDeletion = true;
-                                this.createExplosion(enemy.x + enemy.width/2, enemy.y + enemy.height/2, '#ff3333');
-                                this.sounds.explosion();
-                                this.score += enemy.scoreValue;
-                                
-                                // High score update
-                                if (this.score > this.highScore) {
-                                    this.highScore = this.score;
-                                    localStorage.setItem('invadersHighScore', this.highScore);
-                                }
+                                enemy.hp -= 1; // Normal bullet damage
+                                this.createExplosion(bullet.x, bullet.y, '#ffaa00', 3); // Hit effect
 
-                                // Speed up
-                                this.enemySpeed += 0.005;
+                                if (enemy.hp <= 0) {
+                                    enemy.markedForDeletion = true;
+                                    this.createExplosion(enemy.x + enemy.width/2, enemy.y + enemy.height/2, '#ff3333');
+                                    this.sounds.explosion();
+                                    this.score += enemy.scoreValue;
+                                    
+                                    // High score update
+                                    if (this.score > this.highScore) {
+                                        this.highScore = this.score;
+                                        localStorage.setItem('invadersHighScore', this.highScore);
+                                    }
 
-                                // Drop Chance
-                                if (Math.random() < 0.08) { // 8% chance
-                                    this.dropPowerUp(enemy.x, enemy.y);
+                                    // Speed up
+                                    this.enemySpeed += 0.005;
+
+                                    // Drop Chance
+                                    if (Math.random() < 0.08) { // 8% chance
+                                        this.dropPowerUp(enemy.x, enemy.y);
+                                    }
                                 }
                             }
                         }
@@ -1088,24 +1232,28 @@ class Game {
         // Common
         available.push({ type: WEAPON_RAPID, weight: 30 });
         available.push({ type: WEAPON_SPREAD, weight: 25 });
-        available.push({ type: WEAPON_BOUNCE, weight: 10 });
-        
+
         // Uncommon
+        available.push({ type: WEAPON_BOUNCE, weight: 10 });
+        available.push({ type: WEAPON_HEALTH, weight: 10 }); 
         available.push({ type: WEAPON_SHIELD, weight: 8 });
-        available.push({ type: WEAPON_DOPPELGANGER, weight: 5 });
+        available.push({ type: WEAPON_ROCKET, weight: 8 });
         
         // Rare
-        available.push({ type: WEAPON_HEALTH, weight: 5 }); 
+        available.push({ type: WEAPON_DOPPELGANGER, weight: 5 });
+        
 
-        if (this.level >= 10) {
+        if (this.level >= 5) {
             available.push({ type: WEAPON_SUPER_RAPID, weight: 8 });
             available.push({ type: WEAPON_SUPER_SPREAD, weight: 8 });
-            available.push({ type: WEAPON_ROCKET, weight: 8 });
+        }
+
+        if (this.level >= 10) {
             available.push({ type: WEAPON_TRIPLE, weight: 1 }); 
         }
 
         if (this.level > 15) {
-            available.push({ type: WEAPON_LASER, weight: 8 });
+            available.push({ type: WEAPON_LASER, weight: 5 });
         }
 
         // Weighted random choice
@@ -1327,6 +1475,15 @@ class Game {
         this.particles.forEach(p => p.draw(ctx));
         
         ctx.restore();
+
+        if (this.paused) {
+             ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+             ctx.fillRect(0, 0, this.width, this.height);
+             ctx.fillStyle = '#fff';
+             ctx.textAlign = 'center';
+             ctx.font = '40px "Courier New"';
+             ctx.fillText('PAUSED', this.width/2, this.height/2);
+        }
 
         // Game Over Screen
         if (this.gameOver) {
