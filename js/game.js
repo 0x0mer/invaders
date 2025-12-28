@@ -116,18 +116,18 @@ class PowerUp {
         
         // Visuals
         switch(type) {
-            case WEAPON_RAPID: this.color = '#FFFF00'; this.label = 'R'; break;
-            case WEAPON_SPREAD: this.color = '#00FFFF'; this.label = 'S'; break;
-            case WEAPON_SUPER_RAPID: this.color = '#FF00FF'; this.label = 'SR'; break;
-            case WEAPON_SUPER_SPREAD: this.color = '#00FF00'; this.label = 'SS'; break;
-            case WEAPON_BOUNCE: this.color = '#FFA500'; this.label = 'B'; break; // Orange
-            case WEAPON_DOPPELGANGER: this.color = '#FFFFFF'; this.label = 'D'; break;
-            case WEAPON_SHIELD: this.color = '#0000FF'; this.label = 'SH'; break;
-            case WEAPON_ROCKET: this.color = '#FF4500'; this.label = 'K'; break;
-            case WEAPON_TRIPLE: this.color = '#AAAAAA'; this.label = 'T'; break;
-            case WEAPON_HEALTH: this.color = '#00FF00'; this.label = '+'; break;
-            case WEAPON_LASER: this.color = '#FF0000'; this.label = 'L'; break;
-            default: this.color = '#fff'; this.label = '?';
+            case WEAPON_RAPID: this.color = '#FFFF00'; this.label = 'R'; this.name = 'RAPID'; break;
+            case WEAPON_SPREAD: this.color = '#00FFFF'; this.label = 'S'; this.name = 'SPREAD'; break;
+            case WEAPON_SUPER_RAPID: this.color = '#FF00FF'; this.label = 'SR'; this.name = 'HYPER'; break;
+            case WEAPON_SUPER_SPREAD: this.color = '#00FF00'; this.label = 'SS'; this.name = 'OMEGA'; break;
+            case WEAPON_BOUNCE: this.color = '#FFA500'; this.label = 'B'; this.name = 'BOUNCE'; break; // Orange
+            case WEAPON_DOPPELGANGER: this.color = '#FFFFFF'; this.label = 'D'; this.name = 'CLONE'; break;
+            case WEAPON_SHIELD: this.color = '#0000FF'; this.label = 'SH'; this.name = 'SHIELD'; break;
+            case WEAPON_ROCKET: this.color = '#FF4500'; this.label = 'K'; this.name = 'ROCKET'; break;
+            case WEAPON_TRIPLE: this.color = '#AAAAAA'; this.label = 'T'; this.name = 'TRIPLE'; break;
+            case WEAPON_HEALTH: this.color = '#FF0000'; this.label = '+'; this.name = 'HEALTH'; break;
+            case WEAPON_LASER: this.color = '#FF0000'; this.label = 'L'; this.name = 'LASER'; break;
+            default: this.color = '#fff'; this.label = '?'; this.name = 'UNKNOWN';
         }
     }
 
@@ -137,14 +137,107 @@ class PowerUp {
     }
 
     draw(ctx) {
-        ctx.fillStyle = this.color;
-        ctx.fillRect(this.x, this.y, this.width, this.height);
+        ctx.save();
+        ctx.translate(this.x + this.width / 2, this.y + this.height / 2);
         
-        ctx.fillStyle = '#000';
-        ctx.font = 'bold 10px Courier New';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(this.label, this.x + this.width/2, this.y + this.height/2);
+        if (this.type === WEAPON_HEALTH) {
+            // Improved Heart Shape
+            ctx.fillStyle = this.color;
+            ctx.shadowColor = '#FF0000';
+            ctx.shadowBlur = 10;
+            
+            ctx.save();
+            ctx.scale(1.3, 1.3);
+
+            // Standard heart parametric-ish feel:
+            ctx.beginPath();
+            const topY = -5;
+            const bottomY = 8;
+            const sideX = 13;
+            const topCurveH = 6;
+            
+            ctx.moveTo(0, topY + 2);
+            ctx.bezierCurveTo(-sideX/2, topY - topCurveH, -sideX, topY, 0, bottomY);
+            ctx.bezierCurveTo(sideX, topY, sideX/2, topY - topCurveH, 0, topY + 2);
+            
+            ctx.fill();
+            ctx.shadowBlur = 0;
+            
+            // HP Text
+            ctx.fillStyle = '#FFFFFF';
+            ctx.font = 'bold 8px Courier New';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText("HP", 0, -1); // Slightly up to sit in the bulk of the heart
+            
+            ctx.restore();
+        } else if (this.type === WEAPON_SHIELD) {
+            // Shield Shape
+            ctx.fillStyle = this.color;
+            const s = this.width / 2.5;
+            ctx.beginPath();
+            ctx.moveTo(-s, -s);
+            ctx.lineTo(s, -s);
+            ctx.lineTo(s, 0);
+            ctx.bezierCurveTo(s, s*1.5, 0, s*2, 0, s*2);
+            ctx.bezierCurveTo(0, s*2, -s, s*1.5, -s, 0);
+            ctx.closePath();
+            ctx.fill();
+            
+            // Cross on Shield
+            ctx.fillStyle = '#FFFFFF';
+            ctx.fillRect(-2, -3, 4, 10);
+            ctx.fillRect(-5, 0, 10, 4);
+        } else if (this.type === WEAPON_DOPPELGANGER) {
+            ctx.fillStyle = this.color;
+            // Ship Shape (Mini Player)
+            const w = this.width / 2;
+            const h = this.height / 2;
+            ctx.beginPath();
+            ctx.rect(-w, h - 6, w * 2, 6);        // Base
+            ctx.rect(-w + 2, h - 10, w * 2 - 4, 4); // Mid
+            ctx.rect(-3, h - 14, 6, 4);           // Top
+            ctx.fill();
+        } else {
+            // Rifle Shape
+            ctx.save();
+            ctx.scale(1.3, 1.3);
+            
+            ctx.fillStyle = this.color;
+            ctx.beginPath();
+            // Stock
+            ctx.moveTo(-8, 2); 
+            ctx.lineTo(-8, -2);
+            ctx.lineTo(-5, -2);
+            // Body Top
+            ctx.lineTo(-5, -3);
+            ctx.lineTo(2, -3);
+            // Barrel
+            ctx.lineTo(2, -1.5); 
+            ctx.lineTo(9, -1.5);
+            ctx.lineTo(9, 0.5);
+            ctx.lineTo(2, 0.5);
+            // Body Bottom / Mag
+            ctx.lineTo(2, 3);
+            ctx.lineTo(0, 3);
+            ctx.lineTo(0, 1);
+            // Grip
+            ctx.lineTo(-5, 1);
+            ctx.lineTo(-5, 2);
+            ctx.closePath();
+            ctx.fill();
+
+            // Label Below - Full Name
+            ctx.fillStyle = '#fff';
+            ctx.font = 'bold 8px Arial'; 
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'top';
+            ctx.fillText(this.name, 0, 10); // Positioned below the gun
+            
+            ctx.restore();
+        }
+        
+        ctx.restore();
     }
 }
 
