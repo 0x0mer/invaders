@@ -952,6 +952,7 @@ class Game {
         this.levelTransitionTimer = 0;
 
         this.initInput();
+        this.initMobileControls();
         this.initStars();
         this.startLevel();
     }
@@ -960,6 +961,64 @@ class Game {
         for(let i=0; i<100; i++) {
             this.stars.push(new Star());
         }
+    }
+
+    initMobileControls() {
+        const btnLeft = document.getElementById('btn-left');
+        const btnRight = document.getElementById('btn-right');
+        const btnFire = document.getElementById('btn-fire');
+        const btnPrev = document.getElementById('btn-prev-weapon');
+        const btnNext = document.getElementById('btn-next-weapon');
+        const btnPause = document.getElementById('btn-pause');
+
+        if (!btnLeft) return;
+
+        const bindControl = (btn, key) => {
+            btn.addEventListener('pointerdown', e => {
+                e.preventDefault();
+                this.keys[key] = true;
+            });
+            const release = e => {
+                e.preventDefault();
+                this.keys[key] = false;
+            };
+            btn.addEventListener('pointerup', release);
+            btn.addEventListener('pointerleave', release);
+            btn.addEventListener('pointercancel', release);
+        };
+
+        bindControl(btnLeft, 'ArrowLeft');
+        bindControl(btnRight, 'ArrowRight');
+        bindControl(btnFire, 'Space');
+
+        btnPause.addEventListener('click', (e) => {
+            e.preventDefault();
+            this.paused = !this.paused;
+        });
+
+        const switchWeapon = (dir) => {
+            const weapons = [WEAPON_DEFAULT, WEAPON_RAPID, WEAPON_SPREAD, WEAPON_BOUNCE, WEAPON_ROCKET, WEAPON_LASER];
+            const currentIdx = weapons.indexOf(this.player.weaponType);
+            let nextIdx = (currentIdx + dir + weapons.length) % weapons.length;
+            
+            let attempts = 0;
+            while (weapons[nextIdx] !== WEAPON_DEFAULT && 
+                   (this.player.ammo[weapons[nextIdx]] <= 0 || this.player.ammo[weapons[nextIdx]] === undefined) && 
+                   attempts < weapons.length) {
+                nextIdx = (nextIdx + dir + weapons.length) % weapons.length;
+                attempts++;
+            }
+            this.player.weaponType = weapons[nextIdx];
+        };
+
+        btnPrev.addEventListener('click', (e) => {
+            e.preventDefault();
+            switchWeapon(-1);
+        });
+        btnNext.addEventListener('click', (e) => {
+            e.preventDefault();
+            switchWeapon(1);
+        });
     }
 
     initInput() {

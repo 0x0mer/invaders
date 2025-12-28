@@ -1,3 +1,9 @@
+:root {
+    --neon-blue: #00f3ff;
+    --neon-pink: #ff00ff;
+    --neon-green: #33ff00;
+}
+
 body {
     background-color: #0d0d0d;
     color: #fff;
@@ -12,15 +18,126 @@ body {
     box-sizing: border-box;
     overflow-y: auto;
     user-select: none;
+    touch-action: manipulation;
 }
 
 #game-wrapper {
-    position: relative;
-    max-width: 100%;
     display: flex;
-    flex-direction: row;
-    align-items: flex-start;
     gap: 20px;
+    padding: 20px;
+}
+
+@media (max-width: 900px) {
+    #game-wrapper {
+        flex-direction: column;
+        align-items: center;
+        padding: 5px;
+        width: 100%;
+        gap: 10px;
+    }
+
+    #arsenal {
+        width: 100% !important;
+        max-height: 120px;
+        overflow-y: auto;
+        order: 3;
+    }
+
+    #ui {
+        width: 100% !important;
+        max-width: 600px;
+        font-size: 0.7rem;
+        order: 1;
+    }
+
+    canvas {
+        width: 100% !important;
+        height: auto !important;
+        max-width: 600px;
+    }
+
+    #mobile-controls {
+        display: grid !important;
+        order: 4;
+    }
+
+    #controls-hint {
+        display: none;
+    }
+}
+
+#mobile-controls {
+    display: none;
+    grid-template-columns: 1fr 1fr;
+    grid-template-areas: 
+        "movement combat"
+        "weapons weapons";
+    gap: 20px;
+    width: 100%;
+    max-width: 600px;
+    margin-top: 15px;
+    padding: 10px;
+}
+
+.control-group {
+    display: flex;
+    gap: 10px;
+}
+
+.movement-group {
+    grid-area: movement;
+}
+
+.combat-group {
+    grid-area: combat;
+    justify-content: flex-end;
+}
+
+.weapon-group {
+    grid-area: weapons;
+    justify-content: center;
+}
+
+.control-btn {
+    width: 70px;
+    height: 70px;
+    background: rgba(0, 243, 255, 0.1);
+    border: 2px solid var(--neon-blue);
+    color: var(--neon-blue);
+    font-size: 1.8rem;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    border-radius: 50%;
+    touch-action: none;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    transition: transform 0.1s, background 0.1s;
+}
+
+.control-btn:active {
+    background: rgba(0, 243, 255, 0.3);
+    transform: scale(0.9);
+}
+
+.control-btn.fire {
+    width: 80px;
+    height: 80px;
+    background: rgba(255, 0, 255, 0.1);
+    border-color: var(--neon-pink);
+    color: var(--neon-pink);
+    font-weight: bold;
+}
+
+.control-btn.fire:active {
+    background: rgba(255, 0, 255, 0.3);
+}
+
+.control-btn.small {
+    width: 60px;
+    height: 45px;
+    border-radius: 10px;
+    font-size: 1rem;
 }
 
 #main-column {

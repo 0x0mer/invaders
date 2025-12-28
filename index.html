@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Super Space Invaders</title>
     <link rel="stylesheet" href="css/style.css">
 </head>
@@ -31,6 +31,21 @@
 
             <div id="controls-hint">
                 <span class="highlight">ARROWS</span> to Move • <span class="highlight">SPACE</span> to Shoot • <span class="highlight">1-6</span> to Switch Weapon • <span class="highlight">P</span> to Pause
+            </div>
+
+            <div id="mobile-controls">
+                <div class="control-group movement-group">
+                    <button id="btn-left" class="control-btn">◀</button>
+                    <button id="btn-right" class="control-btn">▶</button>
+                </div>
+                <div class="control-group combat-group">
+                    <button id="btn-fire" class="control-btn fire">FIRE</button>
+                </div>
+                <div class="control-group weapon-group">
+                    <button id="btn-prev-weapon" class="control-btn small">W-</button>
+                    <button id="btn-pause" class="control-btn small">PAUSE</button>
+                    <button id="btn-next-weapon" class="control-btn small">W+</button>
+                </div>
             </div>
         </div>
         
