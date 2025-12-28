@@ -1408,7 +1408,7 @@ class Game {
                                         if (e.hp <= 0) {
                                             e.markedForDeletion = true;
                                             this.score += e.scoreValue;
-                                            this.dropPowerUp(e.x, e.y);
+                                            this.dropPowerUp(e.x + e.width/2, e.y + e.height/2, true);
                                         }
                                     } else {
                                         e.markedForDeletion = true;
@@ -1428,7 +1428,7 @@ class Game {
                                     this.createExplosion(enemy.x + enemy.width/2, enemy.y + enemy.height/2, '#ff0000', 50);
                                     this.sounds.explosion();
                                     this.score += enemy.scoreValue;
-                                    this.dropPowerUp(enemy.x, enemy.y); 
+                                    this.dropPowerUp(enemy.x + enemy.width/2, enemy.y + enemy.height/2, true); 
                                 }
                             } else {
                                 enemy.hp -= damage;
@@ -1453,7 +1453,7 @@ class Game {
                                     this.createExplosion(enemy.x + enemy.width/2, enemy.y + enemy.height/2, '#ff0000', 50);
                                     this.sounds.explosion();
                                     this.score += enemy.scoreValue;
-                                    this.dropPowerUp(enemy.x, enemy.y); 
+                                    this.dropPowerUp(enemy.x + enemy.width/2, enemy.y + enemy.height/2, true); 
                                 }
                             } else {
                                 enemy.hp -= 1; // Normal bullet damage
@@ -1512,7 +1512,20 @@ class Game {
         this.enemies = this.enemies.filter(e => !e.markedForDeletion);
     }
 
-    dropPowerUp(x, y) {
+    dropPowerUp(x, y, isBoss = false) {
+        if (isBoss) {
+            if (this.level === 10) {
+                this.powerUps.push(new PowerUp(x, y, WEAPON_TRIPLE));
+                return;
+            }
+            if (this.level === 15) {
+                this.powerUps.push(new PowerUp(x - 30, y, WEAPON_TRIPLE));
+                this.powerUps.push(new PowerUp(x, y, WEAPON_SHIELD));
+                this.powerUps.push(new PowerUp(x + 30, y, WEAPON_HEALTH));
+                return;
+            }
+        }
+
         const available = [];
         // Common
         available.push({ type: WEAPON_RAPID, weight: 30 });
