@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Super Space Invaders</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+    <div id="game-wrapper">
+        <div id="main-column">
+            <div id="ui">
+                <div>SCORE: <span id="scoreVal" class="highlight">0</span></div>
+                <div>HI-SCORE: <span id="highScoreVal" class="highlight">0</span></div>
+                <div>LEVEL: <span id="levelVal" class="highlight">1</span></div>
+                <div style="color: #00FFFF">WEAPON: <span id="weaponVal" class="highlight">DEFAULT</span></div>
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <div style="color: #ff3333">LIVES: <span id="livesVal">3</span></div>
+                    <div style="color: #ff3333">HP:</div>
+                    <div id="health-bar-container">
+                        <div id="health-bar-fill"></div>
+                    </div>
+                    <div id="shield-indicator" style="display: none; color: #00FFFF; font-size: 0.8rem;">[SHIELD]</div>
+                </div>
+            </div>
+
+            <div id="game-container">
+                <canvas id="gameCanvas"></canvas>
+            </div>
+
+            <div id="controls-hint">
+                <span class="highlight">ARROWS</span> to Move • <span class="highlight">SPACE</span> to Shoot • <span class="highlight">1-6</span> to Switch Weapon
+            </div>
+        </div>
+        
+        <div id="arsenal">
+            <h3>ARSENAL</h3>
+            <div id="arsenal-list"></div>
+        </div>
+    </div>
+
+    <script src="js/game.js"></script>
+</body>
+</html>
